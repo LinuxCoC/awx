@@ -12,7 +12,7 @@
 ARG COLLECTION_BASE="/var/lib/awx/vendor/awx_ansible_collections"
 
 # Build container
-FROM centos:8 as builder
+FROM {{ base_container | default('centos:8') }} as builder
 
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
@@ -23,9 +23,14 @@ USER root
 # Install build dependencies
 RUN dnf -y module enable 'postgresql:12'
 RUN dnf -y update && \
-    dnf -y install epel-release 'dnf-command(config-manager)' && \
+{% if ansible_facts.architecture != "s390x" %}
+    dnf -y install epel-release && \
+{% endif %}
+    dnf -y install 'dnf-command(config-manager)' && \
     dnf module -y enable 'postgresql:12' && \
+{% if ansible_facts.architecture != "s390x" %}
     dnf config-manager --set-enabled powertools && \
+{% endif %}
     dnf -y install ansible \
     gcc \
     gcc-c++ \
@@ -39,7 +44,7 @@ RUN dnf -y update && \
     nss \
     openldap-devel \
     patch \
-    @postgresql:12 \
+    @postgresql:12/server \
     postgresql-devel \
     python3-devel \
     python3-pip \
@@ -48,7 +53,9 @@ RUN dnf -y update && \
     swig \
     unzip \
     xmlsec1-devel \
-    xmlsec1-openssl-devel
+    xmlsec1-openssl-devel \
+    libtool \
+    krb5-devel
 
 RUN python3 -m ensurepip && pip3 install "virtualenv < 20"
 
@@ -84,7 +91,7 @@ RUN make sdist && \
 {% endif %}
 
 # Final container(s)
-FROM centos:8
+FROM {{ base_container | default('centos:8') }}
 
 ARG COLLECTION_BASE
 
@@ -97,9 +104,14 @@ USER root
 # Install runtime requirements
 RUN dnf -y module enable 'postgresql:12'
 RUN dnf -y update && \
-    dnf -y install epel-release 'dnf-command(config-manager)' && \
+{% if ansible_facts.architecture != "s390x" %}
+    dnf -y install epel-release && \
+{% endif %}
+    dnf -y install 'dnf-command(config-manager)' && \
     dnf module -y enable 'postgresql:12' && \
+{% if ansible_facts.architecture != "s390x" %}
     dnf config-manager --set-enabled powertools && \
+{% endif %}
     dnf -y install acl \
     ansible \
     bubblewrap \
@@ -109,7 +121,7 @@ RUN dnf -y update && \
     krb5-workstation \
     libcgroup-tools \
     nginx \
-    @postgresql:12 \
+    @postgresql:12/server \
     python3-devel \
     python3-libselinux \
     python3-pip \
@@ -122,7 +134,11 @@ RUN dnf -y update && \
     which \
     unzip \
     xmlsec1-openssl && \
+{% if ansible_facts.architecture != "s390x" %}
     dnf -y install centos-release-stream && dnf -y install "rsyslog >= 8.1911.0" && dnf -y remove centos-release-stream && \
+{% else %}
+    dnf -y install "rsyslog >= 8.1911.0" && \
+{% endif %}
     dnf -y clean all
 
 # Install kubectl
